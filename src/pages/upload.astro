@@ -1,0 +1,622 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { REPO } from '../lib/site-config';
+---
+
+<BaseLayout title="上传文章" description="上传 Markdown 文件，自动提交到 GitHub 仓库并发布">
+  <section class="hero">
+    <h1>上传文章</h1>
+    <p>把 .md 文件拖进来，补全信息后一键提交到仓库，GitHub Actions 会在 1~2 分钟内自动发布。</p>
+  </section>
+
+  <div class="notice">
+    <strong>说明：</strong>这是纯静态站点，没有自己的后端。所谓「上传」，实际是把 Markdown
+    提交到 GitHub 仓库 <code>{REPO.owner}/{REPO.name}</code> 的 <code>{REPO.postsDir}/</code>
+    目录下，再由 Actions 构建发布。所以提交时需要你的 GitHub 身份（方式二用 Token，方式一直接用 GitHub 网页）。
+  </div>
+
+  <!-- 第一步：选择文件 -->
+  <div id="dropzone" class="dropzone">
+    <p class="dz-main">把 .md 文件拖到这里，或 <button type="button" id="pick-btn" class="link-btn">点击选择文件</button></p>
+    <p class="dz-sub">支持一次选多个文件；也可以 <button type="button" id="paste-btn" class="link-btn">直接粘贴 Markdown 文本</button></p>
+    <input id="file-input" type="file" accept=".md,.markdown,.txt,text/markdown" multiple hidden />
+  </div>
+
+  <div id="paste-area" class="paste-area" hidden>
+    <label for="paste-input">粘贴 Markdown 全文（含 frontmatter 也可）</label>
+    <textarea id="paste-input" rows="8" placeholder="---&#10;title: 文章标题&#10;date: 2026-09-23&#10;tags: [笔记]&#10;summary: 一句话摘要&#10;---&#10;&#10;正文…"></textarea>
+    <button type="button" class="btn btn-ghost btn-inline" id="paste-confirm">加入列表</button>
+  </div>
+
+  <!-- 第二步：确认信息 -->
+  <div id="list" class="file-list"></div>
+
+  <!-- 第三步：提交 -->
+  <div id="submit-area" class="submit-card" hidden>
+    <h2>提交到 GitHub</h2>
+
+    <div class="field">
+      <label>提交方式</label>
+      <div class="radio-row">
+        <label class="radio"><input type="radio" name="mode" value="api" checked /> 方式二：用 Token 直接提交（全自动）</label>
+        <label class="radio"><input type="radio" name="mode" value="web" /> 方式一：打开 GitHub 网页确认（无需 Token）</label>
+      </div>
+    </div>
+
+    <div id="token-box" class="field">
+      <label for="token">GitHub Personal Access Token</label>
+      <input id="token" type="password" placeholder="ghp_… 或 github_pat_…" autocomplete="off" />
+      <p class="hint">
+        需要「Contents: 读写」权限。
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">点这里生成一个（细粒度）</a>，
+        或 <a href="https://github.com/settings/tokens/new?scopes=repo&description=blog-upload" target="_blank" rel="noopener">生成经典 token（勾 repo）</a>。
+        Token 只保存在你这台电脑的浏览器里，不会上传到任何服务器。
+      </p>
+      <label class="checkbox"><input type="checkbox" id="remember" /> 记住 Token（存 localStorage）</label>
+    </div>
+
+    <div class="field">
+      <label for="msg-input">提交信息（commit message）</label>
+      <input id="msg-input" type="text" value="docs: 新增文章" />
+    </div>
+
+    <button type="button" class="btn" id="submit-btn">提交并发布</button>
+    <pre id="log" class="log" hidden></pre>
+  </div>
+</BaseLayout>
+
+<script
+  define:vars={{
+    owner: REPO.owner,
+    repo: REPO.name,
+    branch: REPO.branch,
+    postsDir: REPO.postsDir,
+    tokenKey: 'tech-notes-gh-token',
+  }}
+>
+  const $ = (id) => document.getElementById(id);
+  const dropzone = $('dropzone');
+  const fileInput = $('file-input');
+  const listEl = $('list');
+  const submitArea = $('submit-area');
+  const logEl = $('log');
+
+  /** 队列：{ slug, title, date, tags, summary, private, draft, body } */
+  let items = [];
+
+  // ---------- 文件读取 ----------
+  $('pick-btn').addEventListener('click', () => fileInput.click());
+  $('paste-btn').addEventListener('click', () => {
+    const area = $('paste-area');
+    area.hidden = !area.hidden;
+    if (!area.hidden) $('paste-input').focus();
+  });
+
+  fileInput.addEventListener('change', async () => {
+    for (const file of fileInput.files) await addFile(file);
+    fileInput.value = '';
+  });
+
+  ['dragenter', 'dragover'].forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('is-over');
+    }),
+  );
+  ['dragleave', 'drop'].forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('is-over');
+    }),
+  );
+  dropzone.addEventListener('drop', async (e) => {
+    for (const file of e.dataTransfer.files) await addFile(file);
+  });
+
+  $('paste-confirm').addEventListener('click', () => {
+    const text = $('paste-input').value.trim();
+    if (!text) return;
+    addText(text, 'pasted-note');
+    $('paste-input').value = '';
+    $('paste-area').hidden = true;
+  });
+
+  async function addFile(file) {
+    if (!/\.(md|markdown|txt)$/i.test(file.name)) {
+      log('跳过非 Markdown 文件：' + file.name);
+      return;
+    }
+    addText(await file.text(), file.name);
+  }
+
+  function addText(text, filename) {
+    const parsed = parseFrontmatter(text);
+    const d = parsed.data;
+    const today = new Date().toISOString().slice(0, 10);
+    items.push({
+      filename,
+      slug: slugFromName(filename, d.title),
+      title: d.title || titleFromBody(parsed.body) || filename.replace(/\.(md|markdown|txt)$/i, ''),
+      date: normalizeDate(d.date) || today,
+      tags: Array.isArray(d.tags) ? d.tags : d.tags ? [String(d.tags)] : [],
+      summary: d.summary || excerpt(parsed.body),
+      private: d.private === true,
+      draft: d.draft === true,
+      body: parsed.body,
+    });
+    render();
+  }
+
+  // ---------- frontmatter 解析 ----------
+  function parseFrontmatter(text) {
+    const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+    if (!m) return { data: {}, body: text.replace(/^\s+/, '') };
+    const data = {};
+    for (const line of m[1].split(/\r?\n/)) {
+      const i = line.indexOf(':');
+      if (i === -1) continue;
+      const key = line.slice(0, i).trim();
+      let val = line.slice(i + 1).trim();
+      if (val.startsWith('[') && val.endsWith(']')) {
+        data[key] = val
+          .slice(1, -1)
+          .split(',')
+          .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+          .filter(Boolean);
+      } else if (val === 'true' || val === 'false') {
+        data[key] = val === 'true';
+      } else {
+        data[key] = val.replace(/^['"]|['"]$/g, '');
+      }
+    }
+    return { data, body: text.slice(m[0].length).replace(/^\r?\n/, '') };
+  }
+
+  function slugFromName(filename, title) {
+    const base = filename.replace(/\.(md|markdown|txt)$/i, '');
+    const cleaned = base.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+    return cleaned || slugify(title || base) || base;
+  }
+
+  function slugify(s) {
+    return String(s || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, '-')
+      .replace(/[^\w\u4e00-\u9fa5-]/g, '')
+      .replace(/-+/g, '-');
+  }
+
+  function titleFromBody(body) {
+    const m = /^#\s+(.+)$/m.exec(body);
+    return m ? m[1].trim() : '';
+  }
+
+  function normalizeDate(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  }
+
+  function excerpt(body) {
+    const text = body
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/^[#>\-\*\s]+/gm, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text.slice(0, 80);
+  }
+
+  // ---------- 渲染卡片 ----------
+  function render() {
+    submitArea.hidden = items.length === 0;
+    listEl.innerHTML = '';
+    items.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      card.innerHTML =
+        '<div class="fc-head">' +
+        '<span class="fc-name">' +
+        escapeHtml(item.filename) +
+        '</span>' +
+        '<button type="button" class="link-btn danger" data-act="remove" data-i="' +
+        index +
+        '">移除</button>' +
+        '</div>' +
+        '<div class="fc-grid">' +
+        input('文件名（决定 URL）', 'slug', item.slug, index) +
+        input('标题', 'title', item.title, index) +
+        input('日期', 'date', item.date, index, 'date') +
+        input('标签（逗号分隔）', 'tags', item.tags.join(', '), index) +
+        '</div>' +
+        '<div class="field"><label>摘要</label><textarea rows="2" data-field="summary" data-i="' +
+        index +
+        '">' +
+        escapeHtml(item.summary) +
+        '</textarea></div>' +
+        '<div class="fc-flags">' +
+        check('私密（需登录可见）', 'private', item.private, index) +
+        check('草稿（线上不发布）', 'draft', item.draft, index) +
+        '</div>' +
+        '<details class="fc-preview"><summary>预览正文（' +
+        item.body.length +
+        ' 字）</summary><pre class="fc-body">' +
+        escapeHtml(item.body.slice(0, 1500)) +
+        (item.body.length > 1500 ? '\n…（已截断）' : '') +
+        '</pre></details>' +
+        '<p class="fc-path">将保存到：<code>' +
+        escapeHtml(postsDir + '/' + item.slug + '.md') +
+        '</code></p>';
+      listEl.appendChild(card);
+    });
+  }
+
+  function input(label, field, value, index, type) {
+    return (
+      '<div class="field"><label>' +
+      label +
+      '</label><input type="' +
+      (type || 'text') +
+      '" data-field="' +
+      field +
+      '" data-i="' +
+      index +
+      '" value="' +
+      escapeHtml(value) +
+      '" /></div>'
+    );
+  }
+
+  function check(label, field, checked, index) {
+    return (
+      '<label class="checkbox"><input type="checkbox" data-field="' +
+      field +
+      '" data-i="' +
+      index +
+      '"' +
+      (checked ? ' checked' : '') +
+      ' />' +
+      label +
+      '</label>'
+    );
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // 表单改动回写
+  listEl.addEventListener('input', (e) => {
+    const el = e.target;
+    const field = el.dataset.field;
+    if (!field) return;
+    const item = items[Number(el.dataset.i)];
+    if (!item) return;
+    if (el.type === 'checkbox') item[field] = el.checked;
+    else if (field === 'tags') item.tags = el.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+    else item[field] = el.value;
+    if (field === 'slug') {
+      const pathEl = el.closest('.file-card').querySelector('.fc-path code');
+      if (pathEl) pathEl.textContent = postsDir + '/' + item.slug + '.md';
+    }
+  });
+
+  listEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act="remove"]');
+    if (!btn) return;
+    items.splice(Number(btn.dataset.i), 1);
+    render();
+  });
+
+  // ---------- 提交 ----------
+  document.querySelectorAll('input[name="mode"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      $('token-box').hidden = r.value !== 'api';
+    }),
+  );
+
+  const saved = localStorage.getItem(tokenKey);
+  if (saved) {
+    $('token').value = saved;
+    $('remember').checked = true;
+  }
+
+  function buildContent(item) {
+    let out = '---\n';
+    out += 'title: ' + JSON.stringify(item.title) + '\n';
+    out += 'date: ' + item.date + '\n';
+    out += 'tags: [' + item.tags.join(', ') + ']\n';
+    out += 'summary: ' + JSON.stringify(item.summary) + '\n';
+    if (item.private) out += 'private: true\n';
+    if (item.draft) out += 'draft: true\n';
+    out += '---\n\n' + item.body.replace(/\s*$/, '') + '\n';
+    return out;
+  }
+
+  function b64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(bin);
+  }
+
+  function log(line) {
+    logEl.hidden = false;
+    logEl.textContent += line + '\n';
+  }
+
+  $('submit-btn').addEventListener('click', async () => {
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+    const message = $('msg-input').value.trim() || 'docs: 新增文章';
+    logEl.hidden = false;
+    logEl.textContent = '';
+
+    if (mode === 'web') {
+      for (const item of items) {
+        const path = postsDir + '/' + item.slug + '.md';
+        const content = buildContent(item);
+        if (content.length > 30000) {
+          log('⚠️ ' + path + ' 内容过长，GitHub 网页预填可能截断，建议改用方式二');
+        }
+        const url =
+          'https://github.com/' +
+          owner +
+          '/' +
+          repo +
+          '/new/' +
+          branch +
+          '?filename=' +
+          encodeURIComponent(path) +
+          '&value=' +
+          encodeURIComponent(content);
+        window.open(url, '_blank');
+        log('已打开 GitHub 新建文件页：' + path + ' —— 在页面中点 Commit changes 即可');
+      }
+      return;
+    }
+
+    const token = $('token').value.trim();
+    if (!token) {
+      log('❌ 请先填写 Token');
+      return;
+    }
+    if ($('remember').checked) localStorage.setItem(tokenKey, token);
+    else localStorage.removeItem(tokenKey);
+
+    for (const item of items) {
+      const path = postsDir + '/' + item.slug + '.md';
+      log('提交中：' + path + ' …');
+      try {
+        const res = await putFile(token, path, buildContent(item), message);
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          log('✅ 成功：' + path);
+        } else {
+          log('❌ 失败（' + res.status + '）：' + (data.message || '未知错误'));
+        }
+      } catch (err) {
+        log('❌ 网络错误：' + err.message);
+      }
+    }
+    log('完成。GitHub Actions 会在 1~2 分钟后发布到线上。');
+  });
+
+  async function putFile(token, path, content, message) {
+    const api =
+      'https://api.github.com/repos/' +
+      owner +
+      '/' +
+      repo +
+      '/contents/' +
+      path
+        .split('/')
+        .map(encodeURIComponent)
+        .join('/');
+    const headers = {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    const body = { message, content: b64(content), branch };
+    // 文件已存在时需要带 sha
+    const check = await fetch(api + '?ref=' + encodeURIComponent(branch), { headers });
+    if (check.ok) {
+      const info = await check.json();
+      body.sha = info.sha;
+      log('（文件已存在，将覆盖更新）');
+    }
+    return fetch(api, { method: 'PUT', headers, body: JSON.stringify(body) });
+  }
+</script>
+
+<style>
+  .notice {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 14px;
+    color: var(--text-soft);
+    margin-bottom: 24px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone.is-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .dz-main {
+    margin: 0 0 6px;
+  }
+  .dz-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-faint);
+  }
+  .link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    cursor: pointer;
+    font: inherit;
+  }
+  .link-btn.danger {
+    color: var(--danger);
+    font-size: 13px;
+  }
+  .paste-area {
+    margin-top: 16px;
+  }
+  .paste-area textarea,
+  .file-card textarea,
+  .file-card input[type='text'],
+  .file-card input[type='date'] {
+    width: 100%;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .file-list {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .file-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    background: var(--surface);
+  }
+  .fc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .fc-name {
+    font-weight: 600;
+    font-size: 14px;
+    word-break: break-all;
+  }
+  .fc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .field {
+    margin-bottom: 12px;
+  }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-soft);
+    margin-bottom: 4px;
+  }
+  .fc-flags {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .checkbox,
+  .radio {
+    font-size: 13px;
+    color: var(--text-soft);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fc-preview summary {
+    font-size: 13px;
+    color: var(--text-soft);
+    cursor: pointer;
+  }
+  .fc-body {
+    max-height: 240px;
+    overflow: auto;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .fc-path {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+  .submit-card {
+    margin-top: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    background: var(--surface);
+  }
+  .submit-card h2 {
+    margin: 0 0 16px;
+    font-size: 18px;
+  }
+  .radio-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .submit-card input[type='text'],
+  .submit-card input[type='password'] {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin: 6px 0;
+  }
+  .btn-inline {
+    width: auto;
+    padding: 8px 16px;
+  }
+  .log {
+    margin: 16px 0 0;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    max-height: 260px;
+    overflow: auto;
+  }
+  @media (max-width: 640px) {
+    .fc-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -42,6 +42,7 @@ npm run preview # 预览构建产物
 │   │   ├── tags/[tag].astro     # 单标签文章列表
 │   │   ├── about.astro          # 关于页
 │   │   ├── login.astro          # 登录页
+│   │   ├── upload.astro         # ★ 上传页：浏览器里提交 Markdown 到仓库
 │   │   ├── 404.astro
 │   │   └── rss.xml.ts           # RSS 输出（仅公开文章）
 │   └── styles/global.css        # 主题变量 + 排版样式
@@ -149,7 +150,37 @@ cover: /images/cover.png     # 可选封面
 - **草稿**用 `draft: true`，本地 `npm run dev` 仍能看到，线上构建会自动跳过。
 - 字段写错（比如 `tag:` 少了 s）会在构建时报错并提示哪一行。
 
-## 五、修改密码
+## 五、用上传页发文（不装 Git 也能发）
+
+线上有个上传页：**https://cxuez.github.io/upload/**（需先登录，导航栏「写文章」入口登录后可见）。
+
+流程：**拖入或选择 .md 文件**（支持多文件，也可直接粘贴文本）→ 自动解析/补全
+frontmatter 并生成可编辑卡片 → 确认文件名、标题、日期、标签、摘要、私密/草稿 → 提交。
+
+### 两种提交方式
+
+| 方式 | 需要什么 | 特点 |
+| --- | --- | --- |
+| **方式二：Token 提交**（默认） | 一个 GitHub Personal Access Token | 全自动，点一次就进仓库，Actions 1~2 分钟后发布 |
+| **方式一：GitHub 网页确认** | 浏览器登录着 GitHub | 打开预填好内容的「新建文件」页，手动点 Commit；不需要 Token，但长文可能被截断 |
+
+生成 Token：
+
+- 细粒度（推荐）：https://github.com/settings/personal-access-tokens/new
+  → Repository access 选 `cxuez.github.io` → Permissions 里 **Contents: Read and write**
+- 或经典 Token：https://github.com/settings/tokens/new?scopes=repo&description=blog-upload （勾 `repo`）
+
+> Token 只存在你自己浏览器的 localStorage（勾「记住 Token」才会存），不会发给本站以外的任何服务。
+> 上传页本身是纯前端页面，仓库信息写在 `src/lib/site-config.ts` 的 `REPO` 里。
+
+注意事项：
+
+- **文件名决定 URL**：`my-note.md` → `/posts/my-note/`，卡片里可以改。
+- 提交同名文件会**覆盖更新**（脚本会先取 sha）。
+- 提交成功后不要立刻刷新线上页面，等 Actions 跑完（1~2 分钟）。
+- 如果 Actions 报 frontmatter 校验错，说明 `title` 或 `date` 缺失/格式不对，在上传页改好重新提交即可。
+
+## 六、修改密码
 
 默认密码是 **`admin123`**，务必改掉：
 
@@ -182,7 +213,7 @@ export const PASSWORD_HASH = 'abcdef1234...';
 >
 > 另外登录页用了 `crypto.subtle`，需要 HTTPS 或 localhost 环境（GitHub Pages 默认是 HTTPS，没问题）。
 
-## 六、替换主题 / 改外观
+## 七、替换主题 / 改外观
 
 ### 1. 站点信息
 
@@ -219,7 +250,7 @@ markdown: {
 直接编辑 `src/pages/about.astro`。如果你想用 Markdown 写，可以新建
 `src/content/posts/...` 之外的独立文件，或把 `about.astro` 改成读取一个 .md 文件。
 
-## 七、技术说明
+## 八、技术说明
 
 - **Astro 5** + `astro:content` 内容集合（glob loader + zod schema 校验）
 - **输出**：纯静态 HTML/CSS，默认几乎不带运行时 JS（只有主题切换与登录的几十行脚本）
@@ -227,7 +258,7 @@ markdown: {
 - **RSS**：`/rss.xml`，仅包含公开文章
 - **Markdown 路径插件**：`astro.config.mjs` 里的 `remarkBaseUrls`，保证 `/images/xxx.png` 在子目录部署下也能正确解析
 
-## 八、常用命令
+## 九、常用命令
 
 ```bash
 npm run dev       # 开发

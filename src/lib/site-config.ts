@@ -16,3 +16,12 @@ export const SITE = {
   /** localStorage 中保存主题偏好的键名 */
   themeStorageKey: 'tech-notes-theme',
 };
+
+/** 仓库信息：上传页用它把 Markdown 直接提交到 GitHub */
+export const REPO = {
+  owner: 'cxuez',
+  name: 'cxuez.github.io',
+  branch: 'main',
+  /** 文章存放目录 */
+  postsDir: 'src/content/posts',
+};
