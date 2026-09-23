@@ -1,16 +1,17 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { countTags, url } from '../../lib/site';
+import { getVisiblePosts, collectTags, tagHref } from '../../lib/tags';
 
-const posts = await getCollection('posts', ({ data }) => (import.meta.env.PROD ? !data.draft : true));
-const tags = countTags(posts);
+const posts = await getVisiblePosts();
+const tags = collectTags(posts);
+const total = tags.reduce((sum, t) => sum + t.count, 0);
 ---
 
 <BaseLayout title="标签" description="所有文章标签">
   <section class="hero">
     <h1>标签</h1>
-    <p>共 {tags.length} 个标签，点击可查看该标签下的全部文章。</p>
+    <p>共 {tags.length} 个标签、{total} 个标签引用，点击可查看该标签下的全部文章。</p>
   </section>
 
   {
@@ -18,7 +19,7 @@ const tags = countTags(posts);
       <ul class="tag-cloud">
         {tags.map(({ tag, count, slug }) => (
           <li>
-            <a class="tag" href={url(`tags/${slug}/`)}>
+            <a class="tag" href={tagHref(slug)}>
               #{tag}
               <span class="tag-count">{count}</span>
             </a>

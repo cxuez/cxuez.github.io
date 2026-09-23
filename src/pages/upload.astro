@@ -1,6 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { REPO, SITE } from '../lib/site-config';
+import { REPO } from '../lib/site-config';
+import { getVisiblePosts, collectTags } from '../lib/tags';
+
+/** 构建期把已有标签注入页面，供上传时直接勾选 */
+const existingTags = (await collectTags(await getVisiblePosts())).map((t) => t.tag);
 ---
 
 <BaseLayout title="上传文章" description="上传 Markdown 文件，自动提交到 GitHub 仓库并发布">
@@ -63,19 +67,22 @@ import { REPO, SITE } from '../lib/site-config';
     <button type="button" class="btn" id="submit-btn">提交并发布</button>
     <pre id="log" class="log" hidden></pre>
   </div>
+  <input id="tag-source" type="hidden" data-tags={JSON.stringify(existingTags)} />
 </BaseLayout>
 
-<script
-  define:vars={{
-    owner: REPO.owner,
-    repo: REPO.name,
-    branch: REPO.branch,
-    postsDir: REPO.postsDir,
-    tokenKey: 'tech-notes-gh-token',
-    authKey: 'tech-notes-auth',
-    defaultUser: SITE.author,
-  }}
->
+<script>
+  import { REPO } from '../lib/site-config';
+  import { GH_TOKEN_KEY } from '../lib/post-admin';
+  import { AUTH_STORAGE_KEY, AUTH_DEFAULT_USER } from '../lib/auth';
+  import { uniqueTags, toggleTag, resolveNewTag } from '../lib/tag-picker';
+
+  const owner = REPO.owner;
+  const repo = REPO.name;
+  const branch = REPO.branch;
+  const postsDir = REPO.postsDir;
+  const tokenKey = GH_TOKEN_KEY;
+  const authKey = AUTH_STORAGE_KEY;
+  const defaultUser = AUTH_DEFAULT_USER;
   const $ = (id) => document.getElementById(id);
   const dropzone = $('dropzone');
   const fileInput = $('file-input');
@@ -98,6 +105,9 @@ import { REPO, SITE } from '../lib/site-config';
 
   /** 队列：{ slug, title, date, tags, summary, private, draft, author, body } */
   let items = [];
+
+  /** 可选标签池：构建期已有标签（由 #tag-source 注入）+ 本次新增的标签 */
+  let knownTags = uniqueTags(JSON.parse($('tag-source')?.dataset.tags || '[]'));
 
   // ---------- 文件读取 ----------
   $('pick-btn').addEventListener('click', () => fileInput.click());
@@ -153,7 +163,7 @@ import { REPO, SITE } from '../lib/site-config';
       slug: slugFromName(filename, d.title),
       title: d.title || titleFromBody(parsed.body) || filename.replace(/\.(md|markdown|txt)$/i, ''),
       date: normalizeDate(d.date) || today,
-      tags: Array.isArray(d.tags) ? d.tags : d.tags ? [String(d.tags)] : [],
+      tags: uniqueTags(Array.isArray(d.tags) ? d.tags : d.tags ? [String(d.tags)] : []),
       summary: d.summary || excerpt(parsed.body),
       private: d.private === true,
       draft: d.draft === true,
@@ -261,8 +271,8 @@ import { REPO, SITE } from '../lib/site-config';
         input('标题', 'title', item.title, index) +
         input('日期', 'date', item.date, index, 'date') +
         input('作者（决定谁能删除）', 'author', item.author, index) +
-        input('标签（逗号分隔）', 'tags', item.tags.join(', '), index) +
         '</div>' +
+        tagPicker(item, index) +
         '<div class="field"><label>摘要</label><textarea rows="2" data-field="summary" data-i="' +
         index +
         '">' +
@@ -284,6 +294,42 @@ import { REPO, SITE } from '../lib/site-config';
         '</code></p>';
       listEl.appendChild(card);
     });
+  }
+
+  /** 标签选择器：已有标签可多选 + 即时新增（同名去重） */
+  function tagPicker(item, index) {
+    const candidates = uniqueTags(knownTags.concat(item.tags));
+    let html =
+      '<div class="field"><label>标签（点一下选中/取消，可多选）</label><div class="tag-chips">';
+    if (candidates.length === 0) {
+      html += '<span class="chips-empty">还没有任何标签，在下面新增一个</span>';
+    }
+    for (const name of candidates) {
+      const on = item.tags.some((t) => String(t).toLowerCase() === name.toLowerCase());
+      html +=
+        '<button type="button" class="tag-chip' +
+        (on ? ' is-on' : '') +
+        '" data-act="toggle-tag" data-i="' +
+        index +
+        '" data-tag="' +
+        escapeHtml(name) +
+        '">' +
+        escapeHtml(name) +
+        '</button>';
+    }
+    html += '</div></div>';
+    html +=
+      '<div class="field"><label>新增标签</label><div class="tag-add">' +
+      '<input type="text" data-newtag="' +
+      index +
+      '" placeholder="输入新标签后回车，或点右侧「添加」" />' +
+      '<button type="button" class="btn btn-ghost btn-inline" data-act="add-tag" data-i="' +
+      index +
+      '">添加</button>' +
+      '</div>' +
+      '<p class="hint">新标签会立即出现在上面的候选里并自动选中；与已有标签同名（忽略大小写）时不会重复创建。</p>' +
+      '</div>';
+    return html;
   }
 
   function input(label, field, value, index, type) {
@@ -354,11 +400,64 @@ import { REPO, SITE } from '../lib/site-config';
   });
 
   listEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-act="remove"]');
+    const btn = e.target.closest('[data-act]');
     if (!btn) return;
-    items.splice(Number(btn.dataset.i), 1);
-    render();
+    const act = btn.dataset.act;
+    const index = Number(btn.dataset.i);
+
+    if (act === 'remove') {
+      items.splice(index, 1);
+      render();
+      return;
+    }
+    if (act === 'toggle-tag') {
+      const item = items[index];
+      if (!item) return;
+      item.tags = toggleTag(item.tags, btn.dataset.tag);
+      render();
+      return;
+    }
+    if (act === 'add-tag') {
+      addTag(index, btn.closest('.file-card'));
+    }
   });
+
+  // 在「新增标签」输入框里回车直接添加
+  listEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const el = e.target;
+    if (!el || el.dataset.newtag === undefined) return;
+    e.preventDefault();
+    addTag(Number(el.dataset.newtag), el.closest('.file-card'));
+  });
+
+  function addTag(index, card) {
+    const item = items[index];
+    if (!item) return;
+    const input = card ? card.querySelector('[data-newtag="' + index + '"]') : null;
+    const raw = String((input && input.value) || '');
+
+    const verdict = resolveNewTag(knownTags, item.tags, raw);
+    if (verdict.type === 'empty') {
+      log('❌ 标签不能为空');
+      return;
+    }
+    if (verdict.type === 'exists') {
+      // 同名已存在：不重复创建，直接帮你选中
+      if (!item.tags.some((t) => String(t).toLowerCase() === verdict.tag.toLowerCase())) {
+        item.tags.push(verdict.tag);
+      }
+      log('ℹ️ 标签「' + verdict.tag + '」已存在，已为你选中');
+    } else if (verdict.type === 'duplicate') {
+      log('ℹ️ 标签「' + verdict.tag + '」已经选过了');
+    } else {
+      knownTags.push(verdict.tag);
+      item.tags.push(verdict.tag);
+      log('✅ 已新增标签「' + verdict.tag + '」并选中');
+    }
+    if (input) input.value = '';
+    render();
+  }
 
   // ---------- 提交 ----------
   document.querySelectorAll('input[name="mode"]').forEach((r) =>
@@ -645,6 +744,44 @@ import { REPO, SITE } from '../lib/site-config';
     border: 1px solid var(--warn-border);
     border-radius: 8px;
     padding: 8px 10px;
+  }
+  .tag-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tag-chip {
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-soft);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tag-chip:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .tag-chip.is-on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+  }
+  .chips-empty {
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+  .tag-add {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .tag-add input[type='text'] {
+    flex: 1;
+    min-width: 0;
   }
   .fc-path {
     margin: 10px 0 0;

@@ -16,21 +16,3 @@ export function formatDate(date: Date): string {
     day: '2-digit',
   });
 }
-
-/** 标签 slug 化（中文标签也能安全出现在 URL 中） */
-export function slugifyTag(tag: string): string {
-  return encodeURIComponent(tag.trim().toLowerCase().replace(/\s+/g, '-'));
-}
-
-/** 统计标签及其文章数（只统计公开可见的文章） */
-export function countTags(posts: { data: { tags: string[] } }[]) {
-  const map = new Map<string, number>();
-  for (const post of posts) {
-    for (const tag of post.data.tags) {
-      map.set(tag, (map.get(tag) ?? 0) + 1);
-    }
-  }
-  return [...map.entries()]
-    .map(([tag, count]) => ({ tag, count, slug: slugifyTag(tag) }))
-    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh-CN'));
-}

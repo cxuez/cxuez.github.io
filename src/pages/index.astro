@@ -1,14 +1,12 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PostCard from '../components/PostCard.astro';
+import { getVisiblePosts } from '../lib/tags';
 import { SITE } from '../lib/site-config';
 import { url } from '../lib/site';
 
-// 生产构建时跳过草稿；按日期倒序
-const posts = (await getCollection('posts', ({ data }) => (import.meta.env.PROD ? !data.draft : true))).sort(
-  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
-);
+// 按日期倒序
+const posts = (await getVisiblePosts()).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 ---
 
 <BaseLayout>

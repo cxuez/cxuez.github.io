@@ -1,30 +1,33 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
-import { slugifyTag, url } from '../../lib/site';
+import { getVisiblePosts, collectTags, postsOfTag } from '../../lib/tags';
+import { url } from '../../lib/site';
 
 export async function getStaticPaths() {
-  const posts = await getCollection('posts', ({ data }) => (import.meta.env.PROD ? !data.draft : true));
+  // 与标签列表页共用同一份「可见文章」与同一套 slug 规则，
+  // 保证列表里的计数和这里的文章数永远一致
+  const posts = await getVisiblePosts();
 
-  // 收集所有标签（按原始写法去重，URL 用 slug）
-  const tagMap = new Map<string, string>();
-  for (const post of posts) {
-    for (const tag of post.data.tags) tagMap.set(slugifyTag(tag), tag);
-  }
-
-  return [...tagMap.entries()].map(([slug, tag]) => ({
+  return collectTags(posts).map(({ tag, slug, count }) => ({
     params: { tag: slug },
     props: {
       tag,
-      posts: posts
-        .filter((post) => post.data.tags.some((t) => slugifyTag(t) === slug))
-        .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf()),
+      slug,
+      count,
+      posts: postsOfTag(posts, slug),
     },
   }));
 }
 
-const { tag, posts } = Astro.props;
+interface Props {
+  tag: string;
+  slug: string;
+  count: number;
+  posts: Awaited<ReturnType<typeof getVisiblePosts>>;
+}
+
+const { tag, slug, count, posts } = Astro.props;
 ---
 
 <BaseLayout title={`标签：${tag}`} description={`标签「${tag}」下的全部文章`}>
@@ -33,7 +36,22 @@ const { tag, posts } = Astro.props;
     <p>{posts.length} 篇文章 · <a href={url('tags/')}>全部标签</a></p>
   </section>
 
-  <ul class="post-list">
-    {posts.map((post) => <li><PostCard post={post} /></li>)}
-  </ul>
+  {
+    posts.length > 0 ? (
+      <ul class="post-list">
+        {posts.map((post) => (
+          <li>
+            <PostCard post={post} />
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <div class="empty">
+        <p>
+          这个标签下还没有文章。它可能被移除了，或者相关文章还是草稿。
+          <a href={url('tags/')}>看看其他标签</a>
+        </p>
+      </div>
+    )
+  }
 </BaseLayout>

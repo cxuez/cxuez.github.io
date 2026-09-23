@@ -37,8 +37,10 @@ npm run preview # 预览构建产物
 │   ├── lib/
 │   │   ├── auth.ts              # 密码哈希、登录态读写、登录身份
 │   │   ├── post-admin.ts        # ★ 删除接口：归属校验 + GitHub Contents API
+│   │   ├── tags.ts              # ★ 标签：可见文章、slug、计数、取文章的唯一入口
+│   │   ├── tag-picker.ts        # 上传页标签选择（去重 / 选中 / 新增校验）
 │   │   ├── site.ts              # URL 与日期工具
-│   │   └── site-config.ts       # 站名、作者、底部链接、仓库信息
+│   │   └── site-config.ts       # 站名、作者、联系方式、底部链接、仓库信息
 │   ├── pages/
 │   │   ├── index.astro          # 首页
 │   │   ├── posts/[slug].astro   # 文章详情
@@ -161,7 +163,17 @@ author: cxuez                # 可选作者，默认是 SITE.author；决定谁�
 线上有个上传页：**https://cxuez.github.io/upload/**（需先登录，导航栏「写文章」入口登录后可见）。
 
 流程：**拖入或选择 .md 文件**（支持多文件，也可直接粘贴文本）→ 自动解析/补全
-frontmatter 并生成可编辑卡片 → 确认文件名、标题、日期、标签、摘要、私密/草稿 → 提交。
+frontmatter 并生成可编辑卡片 → 选标签、确认文件名、标题、日期、摘要、私密/草稿 → 提交。
+
+### 选标签
+
+每张卡片里都有一个标签选择器：
+
+- **已有标签直接点选**，可多选，再点一次取消；候选标签是构建期从现有文章里收集好的
+- **没有合适的就现加**：在下方输入框里输入新标签，回车或点「添加」即可，
+  它会立刻出现在候选区并自动选中，本次上传中其他卡片也能选
+- **同名不会重复创建**：与已有标签只差大小写或前后空格时，会判定为同一个，
+  直接帮你选中已有那个（日志区会提示「已存在，已为你选中」）
 
 ### 两种提交方式
 
@@ -262,7 +274,19 @@ export const PASSWORD_HASH = 'abcdef1234...';
 
 ### 1. 站点信息
 
-改 `src/lib/site-config.ts`：站名、副标题、作者、底部链接。
+改 `src/lib/site-config.ts`：站名、副标题、作者、底部链接，以及「关于」页的联系方式。
+
+```ts
+export const CONTACT = [
+  { label: 'GitHub', handle: '@cxuez', href: 'https://github.com/cxuez', icon: 'github' },
+  { label: 'Gitee', handle: '@onezz', href: 'https://gitee.com/onezz', icon: 'gitee' },
+  { label: '邮箱', handle: 'yusuhx@foxmail.com', href: 'mailto:yusuhx@foxmail.com', icon: 'mail' },
+];
+```
+
+- 外链（`http(s)://`）自动加 `target="_blank" rel="noopener noreferrer"`；`mailto:` 不加，交给系统邮件客户端
+- 图标是内联 SVG（simple-icons，24x24），用 `currentColor` 上色，深浅色都能看清；
+  邮箱那一项用的是 ✉️。想加更多平台：往数组里加一项，并在 `about.astro` 的 `ICON_PATHS` 里补一个 path
 
 ### 2. 配色
 
@@ -303,6 +327,24 @@ markdown: {
 - **RSS**：`/rss.xml`，仅包含公开文章
 - **Markdown 路径插件**：`astro.config.mjs` 里的 `remarkBaseUrls`，保证 `/images/xxx.png` 在子目录部署下也能正确解析
 
+### 标签是怎么保证不出错的
+
+标签相关的逻辑全部收在 `src/lib/tags.ts`，列表页、详情页、文章卡片的标签链接都走同一套函数：
+
+- `getVisiblePosts()`：唯一的"可见文章"来源（生产构建排除草稿），三处共用，不会各过滤各的
+- `slugifyTag()`：只做 URL 安全处理（去空格、去 `/?#%&=+` 等危险字符、转小写），**不做百分号编码**
+  —— 编码由 `tagHref()` 在生成链接时才做。以前 slug 里就带 `%E9%9A%8F…`，
+  Astro 会照着生成一个名字带百分号的物理目录，服务器却会把请求解码成中文去匹配，于是中文标签一点就 404
+- `collectTags()`：按 slug 归并计数，`Astro` 与 `astro` 算同一个标签；同一篇文章里重复写的标签只算一次；
+  空标签直接丢弃，不会产生 `/tags//` 这种路由
+- `postsOfTag()`：详情页取文章用与计数完全相同的匹配规则，所以列表显示几篇，点进去就是几篇
+
+改完标签相关代码后跑一次自检即可（会比对列表计数、详情页文章数、链接是否都能打开）：
+
+```bash
+npm run build && npm run test:tags
+```
+
 ## 十、常用命令
 
 ```bash
@@ -311,4 +353,5 @@ npm run build     # 构建
 npm run preview   # 预览构建结果
 npm run hash xxx  # 生成密码哈希
 npm run test:delete  # 冒烟测试删除链路（需先 build，不需要真实 Token）
+npm run test:tags    # 标签一致性 + 标签选择逻辑自检（需先 build）
 ```

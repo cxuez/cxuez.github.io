@@ -11,7 +11,8 @@
     "preview": "astro preview",
     "check": "astro check",
     "hash": "node scripts/hash-password.mjs",
-    "test:delete": "node scripts/smoke-delete.mjs"
+    "test:delete": "node scripts/smoke-delete.mjs",
+    "test:tags": "node scripts/check-tags.mjs && node --experimental-strip-types scripts/check-tag-picker.mjs"
   },
   "dependencies": {
     "astro": "^5.13.0"

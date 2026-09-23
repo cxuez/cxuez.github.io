@@ -1,6 +1,7 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { formatDate, url, slugifyTag } from '../lib/site';
+import { formatDate, url } from '../lib/site';
+import { tagHref } from '../lib/tags';
 import { REPO } from '../lib/site-config';
 import IconLock from './IconLock.astro';
 import DeletePostButton from './DeletePostButton.astro';
@@ -27,7 +28,7 @@ const filePath = `${REPO.postsDir}/${post.id}.md`;
       tags.length > 0 && (
         <span class="post-tags">
           {tags.map((tag) => (
-            <a class="tag" href={url(`tags/${slugifyTag(tag)}/`)}>#{tag}</a>
+            <a class="tag" href={tagHref(tag)}>#{tag}</a>
           ))}
         </span>
       )
