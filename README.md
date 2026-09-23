@@ -161,8 +161,8 @@ frontmatter 并生成可编辑卡片 → 确认文件名、标题、日期、标
 
 | 方式 | 需要什么 | 特点 |
 | --- | --- | --- |
-| **方式二：Token 提交**（默认） | 一个 GitHub Personal Access Token | 全自动，点一次就进仓库，Actions 1~2 分钟后发布 |
-| **方式一：GitHub 网页确认** | 浏览器登录着 GitHub | 打开预填好内容的「新建文件」页，手动点 Commit；不需要 Token，但长文可能被截断 |
+| **方式二：Token 提交**（默认） | 一个 GitHub Personal Access Token | 全自动，点一次就进仓库，Actions 1~2 分钟后发布；文章再长也没问题 |
+| **方式一：GitHub 网页确认** | 浏览器登录着 GitHub | 不需要 Token。短文（<6000 字符）直接预填打开；**长文会自动把内容复制到剪贴板**，打开只预填路径的新建页，粘贴后点 Commit |
 
 生成 Token：
 

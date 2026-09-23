@@ -39,7 +39,7 @@ import { REPO } from '../lib/site-config';
       <label>提交方式</label>
       <div class="radio-row">
         <label class="radio"><input type="radio" name="mode" value="api" checked /> 方式二：用 Token 直接提交（全自动）</label>
-        <label class="radio"><input type="radio" name="mode" value="web" /> 方式一：打开 GitHub 网页确认（无需 Token）</label>
+        <label class="radio"><input type="radio" name="mode" value="web" /> 方式一：打开 GitHub 网页确认（无需 Token，长文会自动复制到剪贴板）</label>
       </div>
     </div>
 
@@ -175,16 +175,20 @@ import { REPO } from '../lib/site-config';
   function slugFromName(filename, title) {
     const base = filename.replace(/\.(md|markdown|txt)$/i, '');
     const cleaned = base.replace(/^\d{4}-\d{2}-\d{2}-/, '');
-    return cleaned || slugify(title || base) || base;
+    return slugify(cleaned || title || base);
   }
 
   function slugify(s) {
-    return String(s || '')
-      .trim()
-      .toLowerCase()
-      .replace(/[\s_]+/g, '-')
-      .replace(/[^\w\u4e00-\u9fa5-]/g, '')
-      .replace(/-+/g, '-');
+    return (
+      String(s || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\+/g, 'plus') // C++ → cplusplus
+        .replace(/[\s_]+/g, '-')
+        .replace(/[^\w\u4e00-\u9fa5-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'note'
+    );
   }
 
   function titleFromBody(body) {
@@ -197,6 +201,18 @@ import { REPO } from '../lib/site-config';
     const d = new Date(v);
     if (isNaN(d.getTime())) return '';
     return d.toISOString().slice(0, 10);
+  }
+
+  /** 找出正文里引用了本地相对路径的图片（静态站读不到） */
+  function localImages(body) {
+    const re = /!\[[^\]]*\]\(([^)]+)\)/g;
+    const out = [];
+    let m;
+    while ((m = re.exec(body))) {
+      const src = m[1].trim().split(/\s+/)[0];
+      if (!/^https?:\/\//i.test(src) && !src.startsWith('/') && !src.startsWith('data:')) out.push(src);
+    }
+    return out;
   }
 
   function excerpt(body) {
@@ -245,6 +261,7 @@ import { REPO } from '../lib/site-config';
         escapeHtml(item.body.slice(0, 1500)) +
         (item.body.length > 1500 ? '\n…（已截断）' : '') +
         '</pre></details>' +
+        imageWarning(item) +
         '<p class="fc-path">将保存到：<code>' +
         escapeHtml(postsDir + '/' + item.slug + '.md') +
         '</code></p>';
@@ -265,6 +282,19 @@ import { REPO } from '../lib/site-config';
       '" value="' +
       escapeHtml(value) +
       '" /></div>'
+    );
+  }
+
+  function imageWarning(item) {
+    const imgs = localImages(item.body);
+    if (imgs.length === 0) return '';
+    return (
+      '<p class="fc-warn">⚠️ 正文里有 ' +
+      imgs.length +
+      ' 处本地图片引用（例如 <code>' +
+      escapeHtml(imgs[0]) +
+      '</code>）。静态站读不到相对路径，需要先把图片放进仓库的 <code>public/images/</code>，' +
+      '再把链接改成 <code>/images/文件名.png</code>，否则发布后图片会裂。</p>'
     );
   }
 
@@ -348,6 +378,32 @@ import { REPO } from '../lib/site-config';
     return btoa(bin);
   }
 
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function showManualCopy(text) {
+    let box = $('manual-copy');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'manual-copy';
+      box.className = 'field';
+      box.innerHTML = '<label>浏览器拒绝了自动复制，请手动全选复制下面内容</label>';
+      const ta = document.createElement('textarea');
+      ta.rows = 10;
+      ta.readOnly = true;
+      ta.value = text;
+      box.appendChild(ta);
+      submitArea.appendChild(box);
+    }
+    box.querySelector('textarea').value = text;
+  }
+
   function log(line) {
     logEl.hidden = false;
     logEl.textContent += line + '\n';
@@ -363,22 +419,21 @@ import { REPO } from '../lib/site-config';
       for (const item of items) {
         const path = postsDir + '/' + item.slug + '.md';
         const content = buildContent(item);
-        if (content.length > 30000) {
-          log('⚠️ ' + path + ' 内容过长，GitHub 网页预填可能截断，建议改用方式二');
+        const newUrl =
+          'https://github.com/' + owner + '/' + repo + '/new/' + branch + '?filename=' + encodeURIComponent(path);
+
+        // URL 太长会被 GitHub 拒收（就是那个"无法访问此页面"），
+        // 所以长文改成：内容复制到剪贴板 + 只预填路径的短链接
+        if (content.length > 6000) {
+          const copied = await copyText(content);
+          window.open(newUrl, '_blank');
+          log('内容较长（' + content.length + ' 字），已' + (copied ? '复制到剪贴板' : '准备就绪') + '：' + path);
+          log('请在刚打开的页面里' + (copied ? '按 Ctrl/⌘+V 粘贴到内容区' : '手动粘贴下方文本框里的内容') + '，然后点 Commit changes');
+          if (!copied) showManualCopy(content);
+        } else {
+          window.open(newUrl + '&value=' + encodeURIComponent(content), '_blank');
+          log('已打开 GitHub 新建文件页（内容已预填）：' + path + ' —— 点 Commit changes 即可');
         }
-        const url =
-          'https://github.com/' +
-          owner +
-          '/' +
-          repo +
-          '/new/' +
-          branch +
-          '?filename=' +
-          encodeURIComponent(path) +
-          '&value=' +
-          encodeURIComponent(content);
-        window.open(url, '_blank');
-        log('已打开 GitHub 新建文件页：' + path + ' —— 在页面中点 Commit changes 即可');
       }
       return;
     }
@@ -562,6 +617,16 @@ import { REPO } from '../lib/site-config';
     font-size: 13px;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+  .fc-warn {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-soft);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    padding: 8px 10px;
   }
   .fc-path {
     margin: 10px 0 0;
