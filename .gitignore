@@ -9,3 +9,7 @@ dist
 
 # 本地工作区数据（记忆、缓存等），不进仓库
 .workbuddy/
+
+# 本地联调用临时文件
+up*.html
+site_check.html
