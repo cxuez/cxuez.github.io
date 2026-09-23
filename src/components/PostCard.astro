@@ -1,0 +1,40 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { formatDate, url, slugifyTag } from '../lib/site';
+import IconLock from './IconLock.astro';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+}
+const { post } = Astro.props;
+const { title, date, tags, summary, private: isPrivate, draft } = post.data;
+const href = url(`posts/${post.id}/`);
+---
+
+<article class="post-item">
+  <h2>
+    <a href={href}>{title}</a>
+    {isPrivate && <span class="badge-private"><IconLock />私密</span>}
+    {draft && <span class="badge-private">草稿</span>}
+  </h2>
+  <div class="post-meta">
+    <time datetime={new Date(date).toISOString()}>{formatDate(date)}</time>
+    {
+      tags.length > 0 && (
+        <span class="post-tags">
+          {tags.map((tag) => (
+            <a class="tag" href={url(`tags/${slugifyTag(tag)}/`)}>#{tag}</a>
+          ))}
+        </span>
+      )
+    }
+  </div>
+  <p class="post-summary">{summary}</p>
+  <a class="read-more" href={href}>阅读全文 →</a>
+</article>
+
+<style>
+  .read-more {
+    font-size: 14px;
+  }
+</style>

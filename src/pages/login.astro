@@ -1,0 +1,90 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { AUTH_STORAGE_KEY, AUTH_TTL_MS, AUTH_CLASS, AUTH_SALT, PASSWORD_HASH } from '../lib/auth';
+import { url } from '../lib/site';
+---
+
+<BaseLayout title="登录" description="登录后查看私密文章">
+  <div class="auth-card">
+    <h1>登录</h1>
+    <p class="hint">输入密码后可以查看标记为「私密」的文章，登录状态保存 7 天。</p>
+
+    <form id="login-form">
+      <div class="field">
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required />
+      </div>
+      <button class="btn" type="submit">登录</button>
+      <p class="form-msg" id="msg" role="status"></p>
+    </form>
+
+    <div id="authed-panel" class="when-authed" style="margin-top:20px">
+      <p class="form-msg ok" style="margin:0 0 12px">已登录，现在可以浏览私密文章了。</p>
+      <button class="btn btn-ghost" id="logout-btn-2" type="button">退出登录</button>
+    </div>
+
+    <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)" />
+    <p style="font-size:13px;color:var(--text-faint);margin:0">
+      本站是纯静态站点，没有后端。密码校验在浏览器本地完成，仅用于隐藏页面内容，
+      请勿用它保护真正敏感的信息。
+    </p>
+  </div>
+</BaseLayout>
+
+<script
+  define:vars={{
+    authKey: AUTH_STORAGE_KEY,
+    authClass: AUTH_CLASS,
+    ttl: AUTH_TTL_MS,
+    home: url(''),
+    salt: AUTH_SALT,
+    expected: PASSWORD_HASH,
+  }}
+>
+  const form = document.getElementById('login-form');
+  const input = document.getElementById('password');
+  const msg = document.getElementById('msg');
+  const root = document.documentElement;
+
+  async function hashPassword(password) {
+    const data = new TextEncoder().encode(`${salt}:${password}`);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const value = input?.value ?? '';
+    if (!value) {
+      msg.textContent = '请输入密码';
+      return;
+    }
+    const hash = await hashPassword(value);
+    if (hash !== expected) {
+      msg.textContent = '密码不正确，请重试';
+      msg.classList.remove('ok');
+      input.value = '';
+      input.focus();
+      return;
+    }
+    try {
+      localStorage.setItem(authKey, JSON.stringify({ exp: Date.now() + ttl }));
+    } catch (err) {}
+    root.classList.add(authClass);
+    msg.textContent = '登录成功，正在跳转…';
+    msg.classList.add('ok');
+
+    const redirect = new URLSearchParams(location.search).get('redirect');
+    setTimeout(() => {
+      location.assign(redirect ? redirect : home);
+    }, 400);
+  });
+
+  document.getElementById('logout-btn-2')?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(authKey);
+    } catch (err) {}
+    root.classList.remove(authClass);
+    location.assign(home);
+  });
+</script>

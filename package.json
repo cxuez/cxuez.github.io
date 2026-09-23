@@ -1,0 +1,18 @@
+{
+  "name": "tech-notes-blog",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "个人技术笔记博客 - Astro 静态站点 + GitHub Pages",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "hash": "node scripts/hash-password.mjs"
+  },
+  "dependencies": {
+    "astro": "^5.13.0"
+  }
+}

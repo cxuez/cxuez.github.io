@@ -1,0 +1,9 @@
+把这里替换成真正的附件即可。
+
+Markdown 中引用方式：
+
+  [下载示例附件](/files/sample.txt)
+
+图片则放在 public/images/ 下，引用方式：
+
+  ![说明文字](/images/cover-astro.svg)

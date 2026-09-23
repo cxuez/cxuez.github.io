@@ -1,0 +1,79 @@
+---
+import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import { SITE } from '../lib/site-config';
+import { AUTH_STORAGE_KEY, AUTH_CLASS } from '../lib/auth';
+import { BASE } from '../lib/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const { title, description = SITE.description } = Astro.props;
+const pageTitle = title ? `${title} · ${SITE.title}` : `${SITE.title} · ${SITE.subtitle}`;
+---
+
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
+    <link rel="alternate" type="application/rss+xml" title={SITE.title} href={`${BASE}rss.xml`} />
+
+    {/* 主题：先于渲染执行，避免闪白 */}
+    <script is:inline define:vars={{ themeKey: SITE.themeStorageKey }}>
+      (function () {
+        try {
+          var saved = localStorage.getItem(themeKey);
+          if (!saved) {
+            saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', saved);
+        } catch (e) {}
+      })();
+    </script>
+
+    {/* 登录态：未登录时私密内容保持隐藏 */}
+    <script is:inline define:vars={{ authKey: AUTH_STORAGE_KEY, authClass: AUTH_CLASS }}>
+      (function () {
+        try {
+          var raw = localStorage.getItem(authKey);
+          if (!raw) return;
+          var data = JSON.parse(raw);
+          if (data && data.exp && data.exp > Date.now()) {
+            document.documentElement.classList.add(authClass);
+          } else {
+            localStorage.removeItem(authKey);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+
+  <body>
+    <Nav />
+    <main>
+      <div class="container">
+        <slot />
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <span>© {new Date().getFullYear()} {SITE.author} · Powered by Astro</span>
+        <span>
+          {
+            SITE.links.map((link) => (
+              <a href={link.href.startsWith('http') ? link.href : BASE + link.href}>{link.label}</a>
+            ))
+          }
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

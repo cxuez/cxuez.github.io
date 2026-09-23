@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../lib/site-config';
+---
+
+<BaseLayout title="关于" description={`关于 ${SITE.author}`}>
+  <section class="hero">
+    <h1>关于</h1>
+  </section>
+
+  <div class="prose">
+    <div class="about-avatar">👋</div>
+
+    <p>
+      你好，我是 <strong>{SITE.author}</strong>。这里是我的技术笔记本 —— 主要记录日常开发中
+      踩过的坑、想明白的原理，以及一些随手记下的配置与代码片段。
+    </p>
+
+    <h2>这个博客是怎么搭的</h2>
+    <ul>
+      <li><strong>Astro</strong>：静态站点生成，默认零 JavaScript，页面首屏很快。</li>
+      <li><strong>Markdown</strong>：所有文章都是 <code>src/content/posts/</code> 下的 .md 文件，用 Git 管理版本。</li>
+      <li><strong>GitHub Actions</strong>：推送到 main 分支后自动构建并发布到 GitHub Pages。</li>
+      <li><strong>Shiki</strong>：构建期做代码高亮，不依赖前端运行时。</li>
+    </ul>
+
+    <h2>写作习惯</h2>
+    <blockquote>
+      <p>能写下来的问题，才是真的想明白了。</p>
+    </blockquote>
+    <p>
+      这里的文章大多先看代码、再写结论，遇到不确定的地方会标注出来。如果你发现哪里写错了，
+      欢迎通过 GitHub Issue 告诉我。
+    </p>
+
+    <h2>联系我</h2>
+    <ul>
+      <li>GitHub：<a href="https://github.com/cxuez">@cxuez</a></li>
+      <li>邮箱：<a href="mailto:cxuez@users.noreply.github.io">cxuez@users.noreply.github.io</a></li>
+    </ul>
+
+    <hr />
+
+    <p style="color:var(--text-faint);font-size:14px">
+      想改这段文字？编辑 <code>src/pages/about.astro</code>，或者把内容换成 Markdown 文件后用
+      <code>content</code> 集合渲染。
+    </p>
+  </div>
+</BaseLayout>

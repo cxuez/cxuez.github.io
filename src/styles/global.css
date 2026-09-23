@@ -1,0 +1,578 @@
+/* ========== 主题变量（浅色为默认） ========== */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f6f8fa;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #1f2328;
+  --text-soft: #57606a;
+  --text-faint: #8b949e;
+  --accent: #0969da;
+  --accent-soft: #ddf4ff;
+  --accent-contrast: #ffffff;
+  --danger: #cf222e;
+  --warn-bg: #fff8c5;
+  --warn-border: #d4a72c;
+  --shadow: 0 1px 2px rgba(16, 22, 26, 0.06), 0 4px 12px rgba(16, 22, 26, 0.05);
+  --radius: 12px;
+  --maxw: 780px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0d1117;
+  --bg-soft: #161b22;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-soft: #9198a1;
+  --text-faint: #6e7681;
+  --accent: #4493f8;
+  --accent-soft: #121d2f;
+  --accent-contrast: #0d1117;
+  --danger: #f85149;
+  --warn-bg: #2b2208;
+  --warn-border: #9e6a03;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.7;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ========== 布局 ========== */
+.container {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 60px;
+}
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.brand:hover {
+  text-decoration: none;
+}
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.nav a,
+.nav button {
+  color: var(--text-soft);
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.nav a:hover,
+.nav button:hover {
+  color: var(--text);
+  background: var(--bg-soft);
+  text-decoration: none;
+}
+.nav a[aria-current='page'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+main {
+  min-height: 60vh;
+  padding: 40px 0 64px;
+}
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 24px 0;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.footer-inner {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ========== 首页 hero ========== */
+.hero {
+  padding: 8px 0 32px;
+}
+.hero h1 {
+  font-size: 30px;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+.hero p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+/* ========== 文章列表 ========== */
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.post-item {
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+}
+.post-item:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.post-item h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.post-item h2 a {
+  color: var(--text);
+}
+.post-item h2 a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.post-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--text-faint);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.post-summary {
+  margin: 0 0 10px;
+  color: var(--text-soft);
+  font-size: 15px;
+}
+.badge-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--warn-border);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* ========== 标签 ========== */
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-soft);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.tag:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.tag-count {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ========== 文章正文 ========== */
+.article-header {
+  margin-bottom: 28px;
+}
+.article-title {
+  font-size: 30px;
+  line-height: 1.3;
+  margin: 0 0 10px;
+  letter-spacing: -0.02em;
+}
+.back-link {
+  font-size: 14px;
+  color: var(--text-faint);
+}
+
+.prose {
+  font-size: 16px;
+  line-height: 1.8;
+  word-wrap: break-word;
+}
+.prose > * + * {
+  margin-top: 1.05em;
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  line-height: 1.35;
+  margin: 1.8em 0 0.6em;
+  letter-spacing: -0.01em;
+}
+.prose h1 {
+  font-size: 26px;
+}
+.prose h2 {
+  font-size: 22px;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+.prose h3 {
+  font-size: 18px;
+}
+.prose h4 {
+  font-size: 16px;
+}
+.prose p {
+  margin: 0;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.6em;
+  margin: 0;
+}
+.prose li + li {
+  margin-top: 0.3em;
+}
+.prose blockquote {
+  margin: 0;
+  padding: 2px 16px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg-soft);
+  color: var(--text-soft);
+  border-radius: 0 8px 8px 0;
+}
+.prose blockquote p + p {
+  margin-top: 0.6em;
+}
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.prose img {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  display: block;
+}
+.prose figcaption {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  font-size: 14px;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+}
+.prose th {
+  background: var(--bg-soft);
+}
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.12em 0.4em;
+}
+.prose pre {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 1em;
+}
+
+/* Shiki 双主题：Astro 把浅色写成内联值，深色放在 --shiki-dark 变量里，
+   所以这里只需要在深色模式下覆盖即可 */
+:root[data-theme='dark'] .astro-code,
+:root[data-theme='dark'] .astro-code span {
+  color: var(--shiki-dark);
+  background-color: var(--shiki-dark-bg);
+  font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight);
+  text-decoration: var(--shiki-dark-text-decoration);
+}
+
+/* ========== 私密内容门禁 ========== */
+.private-content {
+  display: none;
+}
+:root.is-authed .private-content {
+  display: block;
+}
+.private-locked {
+  display: block;
+}
+:root.is-authed .private-locked {
+  display: none;
+}
+.lock-card {
+  border: 1px dashed var(--warn-border);
+  background: var(--warn-bg);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  text-align: center;
+}
+.lock-card h3 {
+  margin: 0 0 8px;
+}
+.lock-card p {
+  margin: 0 0 16px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+/* ========== 登录页 ========== */
+.auth-card {
+  max-width: 400px;
+  margin: 24px auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+.auth-card h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+.auth-card .hint {
+  color: var(--text-soft);
+  font-size: 14px;
+  margin: 0 0 20px;
+}
+.field {
+  margin-bottom: 16px;
+}
+.field label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-bottom: 6px;
+}
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn:hover {
+  filter: brightness(1.08);
+}
+.btn-ghost {
+  color: var(--text-soft);
+  background: transparent;
+  border-color: var(--border);
+}
+.btn-ghost:hover {
+  color: var(--text);
+  background: var(--bg-soft);
+}
+.form-msg {
+  min-height: 20px;
+  font-size: 13px;
+  margin-top: 12px;
+  color: var(--danger);
+}
+.form-msg.ok {
+  color: var(--accent);
+}
+
+/* ========== 关于页 ========== */
+.about-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  margin-bottom: 16px;
+}
+
+/* ========== 登录 / 退出按钮显示切换 ========== */
+.when-authed {
+  display: none;
+}
+:root.is-authed .when-authed {
+  display: inline-flex;
+}
+:root.is-authed .when-anon {
+  display: none;
+}
+
+/* ========== 空状态 / 404 ========== */
+.empty {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--text-faint);
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 640px) {
+  .header-inner {
+    height: auto;
+    padding: 10px 0;
+    flex-wrap: wrap;
+  }
+  .nav {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+  .hero h1,
+  .article-title {
+    font-size: 24px;
+  }
+  .prose h1 {
+    font-size: 22px;
+  }
+  .prose h2 {
+    font-size: 19px;
+  }
+  main {
+    padding: 24px 0 48px;
+  }
+}
+
+@media print {
+  .site-header,
+  .site-footer {
+    display: none;
+  }
+}

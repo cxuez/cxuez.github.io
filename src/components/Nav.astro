@@ -1,0 +1,77 @@
+---
+import { SITE } from '../lib/site-config';
+import { AUTH_STORAGE_KEY, AUTH_CLASS } from '../lib/auth';
+import { url } from '../lib/site';
+
+const path = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const items = [
+  { href: url(''), label: '首页' },
+  { href: url('tags/'), label: '标签' },
+  { href: url('about/'), label: '关于' },
+];
+const isActive = (href: string) => {
+  const base = import.meta.env.BASE_URL.replace(/\/+$/, '');
+  const clean = href.replace(base, '').replace(/\/+$/, '') || '/';
+  return clean === '/' ? path === base + '/' || path === base || path === '/' : path.endsWith(clean);
+};
+---
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href={url('')}>
+      <span class="brand-mark">{'{}'}</span>
+      <span>{SITE.title}</span>
+    </a>
+
+    <nav class="nav" aria-label="主导航">
+      {
+        items.map((item) => (
+          <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+            {item.label}
+          </a>
+        ))
+      }
+
+      <a class="when-anon" href={url('login/')}>登录</a>
+      <button class="when-authed" id="logout-btn" type="button">退出</button>
+
+      <button id="theme-toggle" type="button" aria-label="切换深色/浅色主题" title="切换深色/浅色主题">
+        <span class="theme-icon-light">🌙 深色</span>
+        <span class="theme-icon-dark">☀️ 浅色</span>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<style>
+  #theme-toggle {
+    display: inline-flex;
+    gap: 4px;
+  }
+  :root[data-theme='dark'] .theme-icon-light,
+  :root:not([data-theme='dark']) .theme-icon-dark {
+    display: none;
+  }
+</style>
+
+<script define:vars={{ authKey: AUTH_STORAGE_KEY, authClass: AUTH_CLASS, themeKey: SITE.themeStorageKey }}>
+  // 主题切换
+  const root = document.documentElement;
+  const toggle = document.getElementById('theme-toggle');
+  toggle?.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem(themeKey, next);
+    } catch (e) {}
+  });
+
+  // 退出登录
+  document.getElementById('logout-btn')?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(authKey);
+    } catch (e) {}
+    root.classList.remove(authClass);
+    location.reload();
+  });
+</script>

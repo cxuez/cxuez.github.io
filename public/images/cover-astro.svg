@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-label="Astro 静态博客封面">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="600" fill="url(#bg)" />
+
+  <!-- 装饰圆 -->
+  <circle cx="1010" cy="120" r="180" fill="#38bdf8" opacity="0.08" />
+  <circle cx="180" cy="520" r="220" fill="#8b5cf6" opacity="0.08" />
+
+  <!-- 代码窗口 -->
+  <g transform="translate(96 150)">
+    <rect width="520" height="300" rx="16" fill="#0b1220" stroke="#334155" stroke-width="2" />
+    <rect width="520" height="44" rx="16" fill="#111c2e" />
+    <rect y="30" width="520" height="14" fill="#111c2e" />
+    <circle cx="28" cy="22" r="6" fill="#f87171" />
+    <circle cx="50" cy="22" r="6" fill="#fbbf24" />
+    <circle cx="72" cy="22" r="6" fill="#34d399" />
+    <text x="262" y="27" font-family="ui-monospace, monospace" font-size="13" fill="#64748b" text-anchor="middle">index.astro</text>
+
+    <text x="34" y="90" font-family="ui-monospace, monospace" font-size="15" fill="#7dd3fc">&lt;Layout&gt;</text>
+    <text x="60" y="122" font-family="ui-monospace, monospace" font-size="15" fill="#e2e8f0">&lt;h1&gt;Hello Astro&lt;/h1&gt;</text>
+    <text x="60" y="154" font-family="ui-monospace, monospace" font-size="15" fill="#94a3b8">{</text>
+    <text x="78" y="182" font-family="ui-monospace, monospace" font-size="15" fill="#c4b5fd">posts.map(post =&gt; (</text>
+    <text x="98" y="210" font-family="ui-monospace, monospace" font-size="15" fill="#c4b5fd">&lt;Card &#160;{...post} /&gt;</text>
+    <text x="78" y="238" font-family="ui-monospace, monospace" font-size="15" fill="#c4b5fd">))</text>
+    <text x="60" y="266" font-family="ui-monospace, monospace" font-size="15" fill="#94a3b8">}</text>
+    <text x="34" y="294" font-family="ui-monospace, monospace" font-size="15" fill="#7dd3fc">&lt;/Layout&gt;</text>
+  </g>
+
+  <!-- 文字 -->
+  <g transform="translate(660 210)">
+    <rect width="150" height="30" rx="15" fill="url(#accent)" opacity="0.2" />
+    <text x="75" y="20" font-family="ui-monospace, monospace" font-size="13" fill="#38bdf8" text-anchor="middle">ASTRO + MD</text>
+    <text y="88" font-family="-apple-system, 'Segoe UI', 'PingFang SC', sans-serif" font-size="52" font-weight="700" fill="#f8fafc">静态博客</text>
+    <text y="132" font-family="-apple-system, 'Segoe UI', 'PingFang SC', sans-serif" font-size="52" font-weight="700" fill="url(#accent)">从零搭起来</text>
+    <text y="182" font-family="-apple-system, 'Segoe UI', 'PingFang SC', sans-serif" font-size="19" fill="#94a3b8">Markdown 写作 · 零 JS 输出 · GitHub Pages 托管</text>
+  </g>
+</svg>
