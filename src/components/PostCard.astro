@@ -1,7 +1,9 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { formatDate, url, slugifyTag } from '../lib/site';
+import { REPO } from '../lib/site-config';
 import IconLock from './IconLock.astro';
+import DeletePostButton from './DeletePostButton.astro';
 
 interface Props {
   post: CollectionEntry<'posts'>;
@@ -9,6 +11,8 @@ interface Props {
 const { post } = Astro.props;
 const { title, date, tags, summary, private: isPrivate, draft } = post.data;
 const href = url(`posts/${post.id}/`);
+/** 该文章在仓库里的文件路径，删除时用 */
+const filePath = `${REPO.postsDir}/${post.id}.md`;
 ---
 
 <article class="post-item">
@@ -30,11 +34,20 @@ const href = url(`posts/${post.id}/`);
     }
   </div>
   <p class="post-summary">{summary}</p>
-  <a class="read-more" href={href}>阅读全文 →</a>
+  <div class="post-actions">
+    <a class="read-more" href={href}>阅读全文 →</a>
+    <DeletePostButton path={filePath} title={title} author={post.data.author} />
+  </div>
 </article>
 
 <style>
   .read-more {
     font-size: 14px;
+  }
+  .post-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
 </style>

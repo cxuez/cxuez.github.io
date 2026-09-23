@@ -1,5 +1,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { SITE } from './lib/site-config';
 
 /** 文章集合：src/content/posts/**\/*.md */
 const posts = defineCollection({
@@ -21,6 +22,11 @@ const posts = defineCollection({
     cover: z.string().optional(),
     /** 可选更新时间 */
     updated: z.coerce.date().optional(),
+    /**
+     * 作者（删除权限校验用）：只有以该身份登录的用户能删除这篇笔记。
+     * 不填则视为站长本人 SITE.author。
+     */
+    author: z.string().default(SITE.author),
   }),
 });
 

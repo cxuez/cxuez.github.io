@@ -536,6 +536,145 @@ main {
   display: none;
 }
 
+/* ========== 删除笔记：确认弹窗 / 提示条 ========== */
+.btn-danger {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.del-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.del-modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.del-modal h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.del-target {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-word;
+}
+.del-path {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+  word-break: break-all;
+}
+.del-warn {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-soft);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.del-field {
+  margin-bottom: 12px;
+}
+.del-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-bottom: 4px;
+}
+.del-field input[type='text'],
+.del-field input[type='password'] {
+  width: 100%;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.del-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 6px;
+}
+.del-error {
+  min-height: 18px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--danger);
+  word-break: break-word;
+}
+.del-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.del-actions .btn {
+  width: auto;
+  padding: 9px 18px;
+  font-size: 14px;
+}
+.del-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 200;
+  max-width: min(420px, calc(100vw - 32px));
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+.del-toast-error {
+  border-left-color: var(--danger);
+}
+.del-toast-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.del-toast-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.del-toast-btn:hover {
+  background: var(--bg-soft);
+}
+
 /* ========== 空状态 / 404 ========== */
 .empty {
   text-align: center;

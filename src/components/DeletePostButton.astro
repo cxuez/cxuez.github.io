@@ -1,0 +1,260 @@
+---
+import { url } from '../lib/site';
+
+interface Props {
+  /** 仓库内路径，例如 src/content/posts/hello.md */
+  path: string;
+  /** 笔记标题，用于二次确认 */
+  title: string;
+  /** 笔记作者（frontmatter 的 author），用于归属校验 */
+  author: string;
+  /** 删除成功后的行为：reload 刷新当前页，home 返回首页 */
+  after?: 'reload' | 'home';
+  /** 按钮文字 */
+  label?: string;
+}
+
+const { path, title, author, after = 'reload', label = '删除' } = Astro.props;
+const loginHref = url('login/');
+---
+
+<button
+  type="button"
+  class="del-btn when-authed"
+  data-delete-post
+  data-path={path}
+  data-title={title}
+  data-author={author}
+  data-after={after}
+  data-home={url('')}
+  data-login={loginHref}
+  title="删除这篇笔记（只有作者本人可以删除）"
+>
+  {label}
+</button>
+
+<script>
+  import { checkDeletePermission, deletePost, getToken, saveToken } from '../lib/post-admin';
+
+  /** 删除成功后跨页面传递提示 */
+  const TOAST_KEY = 'tech-notes-toast';
+  /** 删除提交后，Actions 重建完成前，隔多久自动刷新一次（毫秒） */
+  const AUTO_REFRESH_MS = 60000;
+
+  let backdrop: HTMLDivElement | null = null;
+  let lastFocused: HTMLElement | null = null;
+
+  // 事件委托：列表页可能有多个删除按钮
+  document.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    const btn = target?.closest<HTMLElement>('[data-delete-post]');
+    if (!btn) return;
+    event.preventDefault();
+    openDialog(btn);
+  });
+
+  // 页面加载时补上跨页面带来的提示（例如从详情页删完跳回首页）
+  flushPendingToast();
+
+  function openDialog(btn: HTMLElement) {
+    const path = btn.dataset.path || '';
+    const title = btn.dataset.title || '这篇笔记';
+    const author = btn.dataset.author || '';
+    const after = btn.dataset.after === 'home' ? 'home' : 'reload';
+    const home = btn.dataset.home || '/';
+    const login = btn.dataset.login || 'login/';
+
+    // 门禁：登录态 + 归属校验，不通过直接给明确提示，不弹窗
+    const perm = checkDeletePermission(author);
+    if (!perm.ok) {
+      if (perm.code === 'UNAUTHENTICATED') {
+        const redirect = encodeURIComponent(location.pathname + location.search);
+        showToast(perm.message, 'error', '去登录', login + '?redirect=' + redirect);
+      } else {
+        showToast(perm.message, 'error');
+      }
+      return;
+    }
+
+    closeDialog();
+    lastFocused = btn;
+    backdrop = document.createElement('div');
+    backdrop.className = 'del-backdrop';
+    backdrop.innerHTML = `
+      <div class="del-modal" role="dialog" aria-modal="true" aria-labelledby="del-modal-title">
+        <h3 id="del-modal-title">删除笔记</h3>
+        <p class="del-target">《${escapeHtml(title)}》</p>
+        <p class="del-path"><code>${escapeHtml(path)}</code></p>
+        <p class="del-warn">
+          将从 GitHub 仓库删除这个文件，删除后线上文章即消失（Git 历史里仍可找回）。
+          GitHub Actions 需要 1~2 分钟重新发布。
+        </p>
+        <div class="del-field">
+          <label for="del-token">GitHub Token（需 Contents 读写权限）</label>
+          <input id="del-token" type="password" autocomplete="off" placeholder="ghp_… 或 github_pat_…" />
+          <label class="del-check"><input type="checkbox" id="del-remember" checked /> 记住 Token（存本机浏览器）</label>
+        </div>
+        <div class="del-field">
+          <label for="del-msg">提交信息</label>
+          <input id="del-msg" type="text" value="docs: 删除文章 ${escapeHtml(title)}" />
+        </div>
+        <p class="del-error" id="del-error" role="alert"></p>
+        <div class="del-actions">
+          <button type="button" class="btn btn-ghost" data-act="cancel">取消</button>
+          <button type="button" class="btn btn-danger" data-act="confirm">确认删除</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const tokenInput = backdrop.querySelector('#del-token') as HTMLInputElement;
+    const msgInput = backdrop.querySelector('#del-msg') as HTMLInputElement;
+    const remember = backdrop.querySelector('#del-remember') as HTMLInputElement;
+    const errEl = backdrop.querySelector('#del-error') as HTMLParagraphElement;
+    const confirmBtn = backdrop.querySelector('[data-act="confirm"]') as HTMLButtonElement;
+
+    const saved = getToken();
+    if (saved) tokenInput.value = saved;
+
+    backdrop.addEventListener('click', (e) => {
+      const el = e.target as HTMLElement;
+      if (el === backdrop) closeDialog();
+      const act = el.closest<HTMLElement>('[data-act]')?.dataset.act;
+      if (act === 'cancel') closeDialog();
+      if (act === 'confirm') confirm();
+    });
+
+    document.addEventListener('keydown', onKeydown);
+    tokenInput.focus();
+
+    async function confirm() {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        errEl.textContent = '请填写 GitHub Token，否则无法删除仓库里的文件';
+        tokenInput.focus();
+        return;
+      }
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '删除中…';
+      errEl.textContent = '';
+
+      const result = await deletePost({ path, author, token, message: msgInput.value.trim() || undefined });
+
+      if (!result.ok) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '确认删除';
+        errEl.textContent = result.message;
+        return;
+      }
+
+      if (remember.checked) saveToken(token);
+      closeDialog();
+      setPendingToast(`已删除《${title}》。GitHub Actions 会在 1~2 分钟后重新发布。`);
+      if (after === 'home') location.assign(home);
+      else location.reload();
+    }
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') closeDialog();
+  }
+
+  function closeDialog() {
+    document.removeEventListener('keydown', onKeydown);
+    backdrop?.remove();
+    backdrop = null;
+    lastFocused?.focus();
+    lastFocused = null;
+  }
+
+  function setPendingToast(text: string) {
+    try {
+      sessionStorage.setItem(TOAST_KEY, text);
+    } catch (err) {}
+  }
+
+  function flushPendingToast() {
+    let text = '';
+    try {
+      text = sessionStorage.getItem(TOAST_KEY) || '';
+      sessionStorage.removeItem(TOAST_KEY);
+    } catch (err) {}
+    if (text) showToast(text, 'ok');
+  }
+
+  interface ToastOptions {
+    actionText?: string;
+    actionHref?: string;
+  }
+
+  function showToast(message: string, kind: 'ok' | 'error', actionText?: string, actionHref?: string) {
+    document.querySelector('.del-toast')?.remove();
+    const el = document.createElement('div');
+    el.className = 'del-toast del-toast-' + kind;
+    const options: ToastOptions = { actionText, actionHref };
+
+    const text = document.createElement('span');
+    text.textContent = message;
+    el.appendChild(text);
+
+    const actions = document.createElement('span');
+    actions.className = 'del-toast-actions';
+
+    if (kind === 'ok') {
+      // 静态站要等 Actions 重建，这里给一个手动刷新入口 + 一次自动刷新
+      const refresh = document.createElement('button');
+      refresh.type = 'button';
+      refresh.className = 'del-toast-btn';
+      refresh.textContent = '立即刷新';
+      refresh.addEventListener('click', () => location.reload());
+      actions.appendChild(refresh);
+      setTimeout(() => location.reload(), AUTO_REFRESH_MS);
+    }
+
+    if (options.actionText) {
+      const link = document.createElement('a');
+      link.className = 'del-toast-btn';
+      link.textContent = options.actionText;
+      link.href = options.actionHref || '#';
+      actions.appendChild(link);
+    }
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'del-toast-btn';
+    close.textContent = '✕';
+    close.addEventListener('click', () => el.remove());
+    actions.appendChild(close);
+
+    el.appendChild(actions);
+    document.body.appendChild(el);
+    if (kind === 'error') setTimeout(() => el.remove(), 8000);
+  }
+
+  function escapeHtml(s: string): string {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+
+<style>
+  .del-btn {
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text-faint);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .del-btn:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: var(--bg-soft);
+  }
+</style>

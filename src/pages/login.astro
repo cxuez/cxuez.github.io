@@ -1,15 +1,29 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { AUTH_STORAGE_KEY, AUTH_TTL_MS, AUTH_CLASS, AUTH_SALT, PASSWORD_HASH } from '../lib/auth';
+import { SITE } from '../lib/site-config';
 import { url } from '../lib/site';
 ---
 
-<BaseLayout title="登录" description="登录后查看私密文章">
+<BaseLayout title="登录" description="登录后查看私密文章、管理自己创建的笔记">
   <div class="auth-card">
     <h1>登录</h1>
-    <p class="hint">输入密码后可以查看标记为「私密」的文章，登录状态保存 7 天。</p>
+    <p class="hint">输入密码后可以查看标记为「私密」的文章，也能管理自己创建的笔记。登录状态保存 7 天。</p>
 
     <form id="login-form">
+      <div class="field">
+        <label for="identity">身份标识</label>
+        <input
+          id="identity"
+          name="identity"
+          type="text"
+          autocomplete="username"
+          placeholder={SITE.author}
+        />
+        <p class="field-hint">
+          填一个名字或 ID。只有笔记的 author 与它一致时，你才能删除那篇笔记。留空视为「{SITE.author}」。
+        </p>
+      </div>
       <div class="field">
         <label for="password">密码</label>
         <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required />
@@ -19,7 +33,9 @@ import { url } from '../lib/site';
     </form>
 
     <div id="authed-panel" class="when-authed" style="margin-top:20px">
-      <p class="form-msg ok" style="margin:0 0 12px">已登录，现在可以浏览私密文章了。</p>
+      <p class="form-msg ok" style="margin:0 0 12px">
+        已登录（身份：<strong id="cur-user"></strong>），现在可以浏览私密文章、管理自己的笔记了。
+      </p>
       <button class="btn btn-ghost" id="logout-btn-2" type="button">退出登录</button>
     </div>
 
@@ -39,12 +55,29 @@ import { url } from '../lib/site';
     home: url(''),
     salt: AUTH_SALT,
     expected: PASSWORD_HASH,
+    defaultUser: SITE.author,
   }}
 >
   const form = document.getElementById('login-form');
   const input = document.getElementById('password');
+  const identity = document.getElementById('identity');
   const msg = document.getElementById('msg');
   const root = document.documentElement;
+
+  /** 已登录时把身份显示出来 */
+  function currentUser() {
+    try {
+      const raw = localStorage.getItem(authKey);
+      if (!raw) return '';
+      const data = JSON.parse(raw);
+      if (!data || !data.exp || Date.now() > data.exp) return '';
+      return data.user || defaultUser;
+    } catch (err) {
+      return '';
+    }
+  }
+  const curUserEl = document.getElementById('cur-user');
+  if (curUserEl) curUserEl.textContent = currentUser();
 
   async function hashPassword(password) {
     const data = new TextEncoder().encode(`${salt}:${password}`);
@@ -68,7 +101,8 @@ import { url } from '../lib/site';
       return;
     }
     try {
-      localStorage.setItem(authKey, JSON.stringify({ exp: Date.now() + ttl }));
+      const user = (identity?.value ?? '').trim() || defaultUser;
+      localStorage.setItem(authKey, JSON.stringify({ exp: Date.now() + ttl, user }));
     } catch (err) {}
     root.classList.add(authClass);
     msg.textContent = '登录成功，正在跳转…';
@@ -88,3 +122,12 @@ import { url } from '../lib/site';
     location.assign(home);
   });
 </script>
+
+<style>
+  .field-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-faint);
+  }
+</style>

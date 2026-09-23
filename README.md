@@ -2,11 +2,14 @@
 
 一个用 **Astro 5** 搭建的纯静态个人博客，文章全部是本地 Markdown 文件，通过 GitHub Actions 自动部署到 **GitHub Pages**。
 
-- 首页文章列表（按日期倒序，私密文章显示锁图标）- 文章详情（代码高亮、表格、引用、图片、链接）
+- 首页文章列表（按日期倒序，私密文章显示锁图标）
+- 文章详情（代码高亮、表格、引用、图片、链接）
 - 标签分类页（`/tags/` 与 `/tags/<标签>/`）
-- 关于页、登录页、404 页、RSS
+- 关于页、登录页、上传页、404 页、RSS
 - 深浅色主题切换（记忆偏好）
 - 密码登录 + localStorage 7 天有效期，私密文章登录后可见
+- 上传页：浏览器里直接把 Markdown 提交到仓库
+- 删除笔记：校验登录身份与笔记归属，二次确认后从仓库删除
 
 ---
 
@@ -30,11 +33,12 @@ npm run preview # 预览构建产物
 │   ├── content.config.ts        # posts 集合定义 + frontmatter 校验
 │   ├── content/posts/           # ★ 所有 Markdown 文章放这里
 │   ├── layouts/BaseLayout.astro # 页面骨架（导航 / 页脚 / 主题与登录态脚本）
-│   ├── components/              # Nav、PostCard、IconLock
+│   ├── components/              # Nav、PostCard、IconLock、DeletePostButton
 │   ├── lib/
-│   │   ├── auth.ts              # 密码哈希、存储键名、有效期
+│   │   ├── auth.ts              # 密码哈希、登录态读写、登录身份
+│   │   ├── post-admin.ts        # ★ 删除接口：归属校验 + GitHub Contents API
 │   │   ├── site.ts              # URL 与日期工具
-│   │   └── site-config.ts       # 站名、作者、底部链接
+│   │   └── site-config.ts       # 站名、作者、底部链接、仓库信息
 │   ├── pages/
 │   │   ├── index.astro          # 首页
 │   │   ├── posts/[slug].astro   # 文章详情
@@ -134,6 +138,7 @@ summary: 一句话摘要，显示在列表页
 private: false               # 可选，true 时需要登录才能看正文
 draft: false                 # 可选，true 时生产构建不输出
 cover: /images/cover.png     # 可选封面
+author: cxuez                # 可选作者，默认是 SITE.author；决定谁能在网页上删除它
 ---
 
 正文从这里开始，支持标题、列表、表格、引用、代码块、图片、链接。
@@ -148,6 +153,7 @@ cover: /images/cover.png     # 可选封面
 - **图片放 `public/images/`**，用 `/images/xxx.png` 引用（构建时会自动补上 base 前缀，不用担心子目录部署）。
 - **附件放 `public/files/`**，引用方式同理。
 - **草稿**用 `draft: true`，本地 `npm run dev` 仍能看到，线上构建会自动跳过。
+- **作者**用 `author`，不写则视为站长本人（`site-config.ts` 里的 `SITE.author`）。它决定谁能从网页上删除这篇笔记，详见下一章。
 - 字段写错（比如 `tag:` 少了 s）会在构建时报错并提示哪一行。
 
 ## 五、用上传页发文（不装 Git 也能发）
@@ -179,8 +185,47 @@ frontmatter 并生成可编辑卡片 → 确认文件名、标题、日期、标
 - 提交同名文件会**覆盖更新**（脚本会先取 sha）。
 - 提交成功后不要立刻刷新线上页面，等 Actions 跑完（1~2 分钟）。
 - 如果 Actions 报 frontmatter 校验错，说明 `title` 或 `date` 缺失/格式不对，在上传页改好重新提交即可。
+- 上传页会自动把当前登录身份写进 `author` 字段，所以传上去的笔记默认归你所有、可以删除。
 
-## 六、修改密码
+## 六、删除笔记
+
+登录后，首页/标签页每个列表项右下角、以及文章详情页底部会出现「删除」按钮。点它会弹出二次确认框，
+确认后从 GitHub 仓库删除对应 Markdown 文件，Actions 重新构建后线上文章消失。
+
+### 谁能删
+
+| 情况 | 结果 |
+| --- | --- |
+| 未登录 | 按钮不显示；即便手动触发也会提示「尚未登录，无法删除笔记」 |
+| 已登录，但登录身份 ≠ 笔记的 `author` | 提示「无权删除：这篇笔记的作者是「X」，而你当前的登录身份是「Y」」 |
+| 已登录且身份一致 | 弹出确认框，填 Token 后真正删除 |
+| 没填 Token / Token 无效 / 权限不足 | 分别提示「请填写 GitHub Token」「Token 无效或已过期（401）」「Token 权限不足（403）」 |
+
+**登录身份**在登录页的「身份标识」里填（留空视为 `SITE.author`），与上传页共用一套逻辑。
+笔记的 `author` 写在 frontmatter 里，不写则默认 `SITE.author`。
+
+### 删除后的刷新
+
+静态站要等 Actions 重建，所以删除成功会：提示条显示「已删除…1~2 分钟后重新发布」，
+并提供「立即刷新」按钮，60 秒后也会自动刷新一次。详情页删除后会自动跳回首页并给出同样提示。
+
+### 关于"后端接口"
+
+纯静态站没有自己的服务端，这里的删除接口就是 GitHub 的
+`DELETE /repos/{owner}/{repo}/contents/{path}`（实现见 `src/lib/post-admin.ts`）：
+
+- **登录态与归属校验**在浏览器端完成 —— 静态站没有服务端会话，只能做到这一步；
+- **真正拦住外人的是 Token**：删除必须持有对仓库有 Contents 写权限的 GitHub Token，
+  别人就算改了 localStorage 也删不掉任何文件；
+- deleted 文件仍能从 Git 历史找回，误删不必慌。
+
+想本地验证这条链路（无需真实 Token）：
+
+```bash
+npm run build && npm run test:delete
+```
+
+## 七、修改密码
 
 默认密码是 **`admin123`**，务必改掉：
 
@@ -213,7 +258,7 @@ export const PASSWORD_HASH = 'abcdef1234...';
 >
 > 另外登录页用了 `crypto.subtle`，需要 HTTPS 或 localhost 环境（GitHub Pages 默认是 HTTPS，没问题）。
 
-## 七、替换主题 / 改外观
+## 八、替换主题 / 改外观
 
 ### 1. 站点信息
 
@@ -250,7 +295,7 @@ markdown: {
 直接编辑 `src/pages/about.astro`。如果你想用 Markdown 写，可以新建
 `src/content/posts/...` 之外的独立文件，或把 `about.astro` 改成读取一个 .md 文件。
 
-## 八、技术说明
+## 九、技术说明
 
 - **Astro 5** + `astro:content` 内容集合（glob loader + zod schema 校验）
 - **输出**：纯静态 HTML/CSS，默认几乎不带运行时 JS（只有主题切换与登录的几十行脚本）
@@ -258,11 +303,12 @@ markdown: {
 - **RSS**：`/rss.xml`，仅包含公开文章
 - **Markdown 路径插件**：`astro.config.mjs` 里的 `remarkBaseUrls`，保证 `/images/xxx.png` 在子目录部署下也能正确解析
 
-## 九、常用命令
+## 十、常用命令
 
 ```bash
 npm run dev       # 开发
 npm run build     # 构建
 npm run preview   # 预览构建结果
 npm run hash xxx  # 生成密码哈希
+npm run test:delete  # 冒烟测试删除链路（需先 build，不需要真实 Token）
 ```
